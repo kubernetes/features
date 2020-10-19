@@ -151,7 +151,7 @@ abstraction, for instance to express topology. This, third-party implementation 
 complex over time, even if their core doesn't change (ie, the eBPF translation layer is not affected).
 
 This KEP is born from the conviction that more decoupling of the Service object and the actual implementations is required,
-by introducing an intermediate, node-level abstaction provider. This abstraction is expected to be the result of applying
+by introducing an intermediate, node-level abstraction provider. This abstraction is expected to be the result of applying
 Kubernetes' `Service` semantics and business logic to a simpler, more stable API.
 
 ## Motivation
@@ -204,7 +204,7 @@ and/or a socket (`unix:///path/to/proxy.sock`).
 - then, it will process them, applying Kubernetes specific business logic like topology computation relative to the local host;
 - finally, provide the result of this computation to client via a gRPC watchable API.
 
-The idea is to sent the full state to the client, so implementations don't have to do diff-processing and maintain any internal state.
+The idea is to send the full state to the client, so implementations don't have to do diff-processing and maintain any internal state.
 This should provide simple implementations, reliable results and still be quite optimal, since many kernel network-level objects are
 updated via atomic replace APIs. It's also a protection from slow readers, since no stream has to be buffered.
 
@@ -264,10 +264,12 @@ required) or even code snippets. If there's any ambiguity about HOW your
 proposal will be implemented, this is the place to discuss them.
 -->
 
-A draft implementation exists [here](https://github.com/mcluseau/kube-proxy2/) and some performance testing has been done
-[here](https://github.com/mcluseau/kube-proxy2/blob/master/doc/proposal.md).
+A [draft implementation] exists and some [performance testing] has been done.
 
-The watchable API will be a long polling, taking a "last know state info" and returning a stream of objects. Proposed defition:
+[draft implementation]: https://github.com/mcluseau/kube-proxy2/
+[performance testing]: https://github.com/mcluseau/kube-proxy2/blob/master/doc/proposal.md
+
+The watchable API will be a long polling, taking a "last known state info" and returning a stream of objects. Proposed definition:
 
 ```proto
 service Endpoints {
@@ -297,7 +299,7 @@ full states. This means it waits to have all its Kubernetes watchers sync'ed bef
 The first NextItem in the stream will be the state info required for the next polling call, and any subsequent item will
 be an actual state object. The stream is closed when the full state has been sent.
 
-The client library abstract those details away and provides the full state after each change, and includes a default Run
+The client library abstracts those details away and provides the full state after each change, and includes a default Run
 function, setting up default flags, parsing them and running the client, allowing very simple clients like this:
 
 ```golang
@@ -749,5 +751,4 @@ Use this section if you need things from the project/SIG. Examples include a
 new subproject, repos requested, or GitHub details. Listing these here allows a
 SIG to get the process for these resources started right away.
 -->
-
 
