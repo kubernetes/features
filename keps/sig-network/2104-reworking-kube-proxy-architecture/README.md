@@ -141,18 +141,21 @@ Items marked with (R) are required *prior to targeting to a milestone / release*
 
 ## Summary
 
-At the beginning, `kube-proxy` was designed to handle the translation of Service objects to OS-level resources.
-Implementations have been userland, then iptables, and now ipvs. With the growth of the Kubernetes project, more
-implementations came to life, for instance with eBPF, and often in relation to other goals (Calico to manage
-the network overlay, Cilium to manage app-level security, metallb to provide an external LB for bare-metal clusters, etc).
+At the beginning, `kube-proxy` was designed to handle the translation of Service objects to OS-level
+resources.  Implementations have been userland, then iptables, and now ipvs. With the growth of the
+Kubernetes project, more implementations came to life, for instance with eBPF, and often in relation
+to other goals (Calico to manage the network overlay, Cilium to manage app-level security, metallb
+to provide an external LB for bare-metal clusters, etc).
 
-Along this cambrian explosion of third-party software, the Service object itself received new concepts to improve the
-abstraction, for instance to express topology. This, third-party implementation are expected to update and become more
-complex over time, even if their core doesn't change (ie, the eBPF translation layer is not affected).
+Along this cambrian explosion of third-party software, the Service object itself received new
+concepts to improve the abstraction, for instance to express topology. This, third-party
+implementation are expected to update and become more complex over time, even if their core doesn't
+change (ie, the eBPF translation layer is not affected).
 
-This KEP is born from the conviction that more decoupling of the Service object and the actual implementations is required,
-by introducing an intermediate, node-level abstraction provider. This abstraction is expected to be the result of applying
-Kubernetes' `Service` semantics and business logic to a simpler, more stable API.
+This KEP is born from the conviction that more decoupling of the Service object and the actual
+implementations is required, by introducing an intermediate, node-level abstraction provider. This
+abstraction is expected to be the result of applying Kubernetes' `Service` semantics and business
+logic to a simpler, more stable API.
 
 ## Motivation
 
@@ -168,10 +171,12 @@ demonstrate the interest in a KEP within the wider Kubernetes community.
 ### Goals
 
 - provide a node-level abstraction of the cluster-wide `Service` semantics through an API
-- allow easier, more stable proxy implementations that don't need updates when `Service` business logic changes
+- allow easier, more stable proxy implementations that don't need updates when `Service` business
+  logic changes
 - provide a client library with minimal dependencies
 - include equivalent implementations of in-project ones (userland, iptables and ipvs)
-- (optional) help proxy implementations using the same subsystem (ie iptables) to cooperate more easily
+- (optional) help proxy implementations using the same subsystem (ie iptables) to cooperate more
+  easily
 
 <!--
 List the specific goals of the KEP. What is it trying to achieve? How will we
@@ -197,20 +202,28 @@ implementation. The "Design Details" section below is for the real
 nitty-gritty.
 -->
 
-Rewrite the kube-proxy to be a "localhost" gRPC API provider that will be accessible via classic TCP (`127.0.0.1:12345`)
-and/or a socket (`unix:///path/to/proxy.sock`).
+Rewrite the kube-proxy to be a "localhost" gRPC API provider that will be accessible as usual via
+TCP (`127.0.0.1:12345`) and/or via a socket (`unix:///path/to/proxy.sock`).
 
 - it will connect to the API server and watch resources, like the current proxy;
-- then, it will process them, applying Kubernetes specific business logic like topology computation relative to the local host;
+- then, it will process them, applying Kubernetes specific business logic like topology computation
+  relative to the local host;
 - finally, provide the result of this computation to client via a gRPC watchable API.
 
-The idea is to send the full state to the client, so implementations don't have to do diff-processing and maintain any internal state.
-This should provide simple implementations, reliable results and still be quite optimal, since many kernel network-level objects are
-updated via atomic replace APIs. It's also a protection from slow readers, since no stream has to be buffered.
+This decoupling allows kube-proxy and implementation to evolve in their own timeframes. For
+instance, introducing optimizations like EndpointSlice or new business semantics like Topology
+does not trigger a rebuild/release of any proxy implementation.
 
-Since the node-local state computed by the new proxy will be simpler and node-specific, it will only change when the result for the
-current node is actually changed. Since there's less data in the local state, change frequency is reduced. Testing on actual clusters
-showed a frequency reduction by 2 orders of magnitude.
+The idea is to send the full state to the client, so implementations don't have to do
+diff-processing and maintain any internal state. This should provide simple implementations,
+reliable results and still be quite optimal, since many kernel network-level objects are
+updated via atomic replace APIs. It's also a protection from slow readers, since no stream has to
+be buffered.
+
+Since the node-local state computed by the new proxy will be simpler and node-specific, it will
+only change when the result for the current node is actually changed. Since there's less data in
+the local state, change frequency is reduced compared to cluster state. Testing on actual clusters
+showed a frequency reduction of change events by 2 orders of magnitude.
 
 ### User Stories (Optional)
 
@@ -238,8 +251,9 @@ Go in to as much detail as necessary here.
 This might be a good place to talk about core concepts and how they relate.
 -->
 
-- sending the full-state could be resource consuming on big clusters, but it should still be O(1) to the actual kernel definitions
-  (the complexity of what the node has to handle cannot be reduced without losing functionality or correctness).
+- sending the full-state could be resource consuming on big clusters, but it should still be O(1) to
+  the actual kernel definitions (the complexity of what the node has to handle cannot be reduced
+  without losing functionality or correctness).
 
 ### Risks and Mitigations
 
@@ -269,7 +283,8 @@ A [draft implementation] exists and some [performance testing] has been done.
 [draft implementation]: https://github.com/mcluseau/kube-proxy2/
 [performance testing]: https://github.com/mcluseau/kube-proxy2/blob/master/doc/proposal.md
 
-The watchable API will be a long polling, taking a "last known state info" and returning a stream of objects. Proposed definition:
+The watchable API will be a long polling, taking a "last known state info" and returning a stream of
+objects. Proposed definition:
 
 ```proto
 service Endpoints {
@@ -292,15 +307,18 @@ message NextItem {
 }
 ```
 
-When the proxy starts, it will generate a random InstanceID, and have Rev at 0. So, a client (re)connecting with get the
-new state either after a proxy restart or when an actual change occurs. The proxy will never send a partial state, only
-full states. This means it waits to have all its Kubernetes watchers sync'ed before going to Rev 1.
+When the proxy starts, it will generate a random InstanceID, and have Rev at 0. So, a client
+(re)connecting with get the new state either after a proxy restart or when an actual change occurs.
+The proxy will never send a partial state, only full states. This means it waits to have all its
+Kubernetes watchers sync'ed before going to Rev 1.
 
-The first NextItem in the stream will be the state info required for the next polling call, and any subsequent item will
-be an actual state object. The stream is closed when the full state has been sent.
+The first NextItem in the stream will be the state info required for the next polling call, and any
+subsequent item will be an actual state object. The stream is closed when the full state has been
+sent.
 
-The client library abstracts those details away and provides the full state after each change, and includes a default Run
-function, setting up default flags, parsing them and running the client, allowing very simple clients like this:
+The client library abstracts those details away and provides the full state after each change, and
+includes a default Run function, setting up default flags, parsing them and running the client,
+allowing very simple clients like this:
 
 ```golang
 package main
@@ -401,9 +419,10 @@ func Run(handlers ...HandlerFunc) {
 }
 ```
 
-- use the docker syntax to express binding, allowing sockets with `unix:///run/kubernetes/proxy.sock`
-- may economize some syscalls for internal implementations by using `google.golang.org/grpc/test/bufconn`,
-  but that sounds like premature optimization
+- use the docker syntax to express binding, allowing sockets with
+  `unix:///run/kubernetes/proxy.sock`
+- may economize some syscalls for internal implementations by using
+  `google.golang.org/grpc/test/bufconn`, but that sounds like premature optimization
 
 ### Test Plan
 
@@ -738,11 +757,12 @@ Why should this KEP _not_ be implemented?
 
 ## Alternatives
 
-<!--
-What other approaches did you consider, and why did you rule them out? These do
-not need to be as detailed as the proposal, but should include enough
-information to express the idea and why it was not acceptable.
--->
+- kube-proxy as a library.
+
+If any implementation uses a library, then it has to be released with every change to this client.
+This KEP allows to decouple the releases of implementations from the core, so they occur only when
+improving the implementation, or reacting to a change in the simplified model (that should be much
+less frequent than k8s business logic changes or fixes).
 
 ## Infrastructure Needed (Optional)
 
