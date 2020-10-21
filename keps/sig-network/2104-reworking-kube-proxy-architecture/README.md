@@ -308,7 +308,7 @@ message NextItem {
 ```
 
 When the proxy starts, it will generate a random InstanceID, and have Rev at 0. So, a client
-(re)connecting with get the new state either after a proxy restart or when an actual change occurs.
+(re)connecting will get the new state either after a proxy restart or when an actual change occurs.
 The proxy will never send a partial state, only full states. This means it waits to have all its
 Kubernetes watchers sync'ed before going to Rev 1.
 
