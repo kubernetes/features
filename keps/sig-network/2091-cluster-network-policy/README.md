@@ -167,16 +167,12 @@ and make progress.
 
 ## Proposal
 
-<!--
-This is where we get down to the specifics of what the proposal actually is.
-This should have enough detail that reviewers can understand exactly what
-you're proposing, but should not include things like API designs or
-implementation. What is the desired outcome and how do we measure success?.
-The "Design Details" section below is for the real
-nitty-gritty.
--->
+In order to achieve the two primary broad use cases for a cluster admin to secure K8s clusters,
+we propose to introduce the following two new resources under `networking.k8s.io` API group:
+- ClusterNetworkPolicy resource
+- DefaultNetworkPolicy resource
 
-### ClusterNetworkPolicy
+### ClusterNetworkPolicy resource
 
 A ClusterNetworkPolicy resource will help the administrators set strict security rules for the cluster,
 i.e. a developer CANNOT override these rules by creating NetworkPolicies that applies to the same workloads
@@ -199,7 +195,7 @@ in the cluster that needs to be allowed for certain components to work as expect
 example). Those traffic could be blocked when developers apply NetworkPolicy to their Namespaces which
 turns the workloads to be isolated.
 
-### DefaultNetworkPolicy
+### DefaultNetworkPolicy resource
 
 A DefaultNetworkPolicy resource will help the administrators set baseline security rules for the cluster,
 i.e. a developer CAN override these rules by creating NetworkPolicies that applies to the same workloads
@@ -213,10 +209,7 @@ Aggregated NetworkPolicy rules will be evaluated before aggregated DefaultNetwor
 If a Pod is selected by both a DefaultNetworkPolicy and a NetworkPolicy, then the DefaultNetworkPolicy's
 effect on that Pod becomes obsolete. The traffic allowed will be solely determined by the NetworkPolicy.
 
-(TODO: Add a diagram to explain the precedence?)
-
-Together, a ClusterNetworkPolicy and a DefaultNetworkPolicy resource can help satisfy all the
-administrator use cases.
+(TODO: Add a diagram to explain the precedence)
 
 ### User Stories (Optional)
 
@@ -755,4 +748,30 @@ Why should this KEP _not_ be implemented?
 What other approaches did you consider, and why did you rule them out? These do
 not need to be as detailed as the proposal, but should include enough
 information to express the idea and why it was not acceptable.
+-->
+
+Following alternative approaches were considered:
+
+### NetworkPolicy v2
+
+<!--
+Complete me
+-->
+
+### Single CRD with DefaultRules field
+
+<!--
+Complete me
+-->
+
+### Single CRD with IsOverrideable field
+
+<!--
+Complete me
+-->
+
+### Single CRD with BaselineAllow as Action
+
+<!--
+Complete me
 -->
