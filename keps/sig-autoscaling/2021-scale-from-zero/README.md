@@ -242,6 +242,17 @@ Go in to as much detail as necessary here.
 This might be a good place to talk about core concepts and how they relate.
 -->
 
+Currently disabling HPA is possible by manually setting the scaled resource to `replicas: 0`. This works as the HPA itself could never reach this state itself.
+As `replicas: 0` is now a possible state when using `minReplicas: 0` it can no longer be used to differentiate between manually disabled or automatically scaled to zero.
+
+Additionally the `replicas: 0` state is problematic as updating a HPA object `minReplicas` from `0` to `1` has different behavior. If `replicas` was `0` during the update, HPA
+will be disabled for the resource, if it was `> 0`, HPA will continue with the new `minReplicas` value.
+
+While allowing `maxReplicas: 0` seems like a potential solution, currently `minReplicas: 0` is only allowed when at least one object or external metric is defined, so `maxReplicas: 0`
+wouldn't be usable to disable scaling for all HPA objects (unless max < min, which seems fairly surprising).
+
+To resolve this issue the KEP is introducing an explicit `suspend` property (similar to CronJobs) to explicitly disable HPA with any types of metrics.
+
 ### Risks and Mitigations
 
 <!--
@@ -265,6 +276,17 @@ required) or even code snippets. If there's any ambiguity about HOW your
 proposal will be implemented, this is the place to discuss them.
 -->
 
+We would add `Suspend *bool` to the HPA spec. It would have a default value of false, preserving current behavior.
+
+```golang
+// Spec to control the desired behavior of daemon set rolling update.
+type HorizontalPodAutoscalerSpec struct {
+	// This flag tells the controller to suspend subsequent executions.
+  // Defaults to false.
+	// +optional
+	Suspend *bool `json:"suspend,omitempty" protobuf:"varint,4,opt,name=suspend"`
+```
+
 ### Test Plan
 
 <!--
@@ -284,6 +306,8 @@ when drafting this test plan.
 
 [testing-guidelines]: https://git.k8s.io/community/contributors/devel/sig-testing/testing.md
 -->
+
+* Add missing integration tests changing `minReplicas` from `0` to `1`.
 
 ### Graduation Criteria
 
@@ -314,12 +338,8 @@ Below are some examples to consider, in addition to the aforementioned [maturity
 
 #### Alpha -> Beta Graduation
 
-- Determine a way to handle k8s upgrade/downgrade with `minReplicas: 0`. In the alpha this problem is avoided by requiring an explicit feature gate opt-in, but this won't be true if the gate defaults to true. A potential solution is outlined here https://github.com/kubernetes/kubernetes/pull/74526#issuecomment-497549411
 - Bug: Fix that increasing `minReplicas` from `0` to `1` is not causing the scaled resource to be scaled to `1`.
-- Discuss how to deal with the fact that HPA can no longer be disabled, which was previously done by setting `replicas: 0` on the scaled resource.
-- Gather feedback from developers and surveys
-- Complete features A, B, C
-- Tests are in Testgrid and linked in KEP
+- Re-add support for disabling HPA using the `suspend` property.
 
 #### Beta -> GA Graduation
 
@@ -358,6 +378,8 @@ enhancement:
 - What changes (in invocations, configurations, API use, etc.) is an existing
   cluster required to make on upgrade, in order to make use of the enhancement?
 -->
+
+As this KEP changes the allowed values for `minReplicas`, special care is required for the downgrade case to not prevent any kind of updates for HPA objects using `minReplicas: 0`. The alpha code already accepts `minReplicas: 0` with the flag enabled or disabled since Kubernetes version 1.16 downgrades to any version >= 1.16 aren't an issue.
 
 ### Version Skew Strategy
 
@@ -426,7 +448,7 @@ _This section must be completed when targeting alpha to a release._
   Any change of default behavior may be surprising to users or break existing
   automations, so be extremely careful here.
 
-  HPA creation with `minReplicas: 0` is no longer rejected.
+  HPA creation/update with `minReplicas: 0` is no longer rejected.
 
 * **Can the feature be disabled once it has been enabled (i.e. can we roll back
   the enablement)?**
@@ -436,9 +458,9 @@ _This section must be completed when targeting alpha to a release._
 
   Yes. To downgrade the cluster to version that does not support scale-to-zero feature:
 
-  1. Make sure there are no hpa objects with minReplicas=0. Here is a oneliner to update it to 1:
+  1. Make sure there are no hpa objects with minReplicas=0 and maxReplicas=0. Here is a oneliner to update it to 1:
 
-      `$ kubectl get hpa --all-namespaces  --no-headers=true | awk  '{if($6==0) printf "kubectl patch hpa/%s --namespace=%s -p \"{\\\"spec\\\":{\\\"minReplicas\\\":1}}\"\n", $2, $1 }' | sh`
+      `$ kubectl get hpa --all-namespaces  --no-headers=true | awk  '{if($6==0) printf "kubectl patch hpa/%s --namespace=%s -p \"{\\\"spec\\\":{\\\"minReplicas\\\":1,\\\"maxReplicas\\\":1}}\"\n", $2, $1 }' | sh`
   2. Disable `HPAScaleToZero` feature gate
 
 * **What happens if we reenable the feature if it was previously rolled back?**
