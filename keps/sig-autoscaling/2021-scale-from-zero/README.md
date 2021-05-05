@@ -273,15 +273,22 @@ required) or even code snippets. If there's any ambiguity about HOW your
 proposal will be implemented, this is the place to discuss them.
 -->
 
-We would add `EnableScaleToZero *bool` to the HPA spec. It would have a default value of false, preserving current behavior.
+We would add `EnableScaleToZero *bool` to the HPA `spec.behavior`. It would have a default value of false, preserving current behavior.
 
 ```golang
-// Spec to control the desired behavior of daemon set rolling update.
+type HorizontalPodAutoscalerBehavior struct {
+    ScaleUp           *HPAScalingRules
+    ScaleDown         *HPAScalingRules
+    EnableScaleToZero *bool
+}
+
 type HorizontalPodAutoscalerSpec struct {
-	// This flag tells the controller to enable scale to zero.
-  // Defaults to false.
-	// +optional
-	EnableScaleToZero *bool `json:"enableScaleToZero,omitempty" protobuf:"varint,4,opt,name=enableScaleToZero"`
+    ScaleTargetRef CrossVersionObjectReference
+    MinReplicas    *int32
+    MaxReplicas    int32
+    Metrics        []MetricSpec
+    Behavior       *HorizontalPodAutoscalerBehavior
+}
 ```
 
 ### Test Plan
