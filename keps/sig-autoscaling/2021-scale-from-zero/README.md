@@ -248,10 +248,7 @@ As `replicas: 0` is now a possible state when using `minReplicas: 0` it can no l
 Additionally the `replicas: 0` state is problematic as updating a HPA object `minReplicas` from `0` to `1` has different behavior. If `replicas` was `0` during the update, HPA
 will be disabled for the resource, if it was `> 0`, HPA will continue with the new `minReplicas` value.
 
-While allowing `maxReplicas: 0` seems like a potential solution, currently `minReplicas: 0` is only allowed when at least one object or external metric is defined, so `maxReplicas: 0`
-wouldn't be usable to disable scaling for all HPA objects (unless max < min, which seems fairly surprising).
-
-To resolve this issue the KEP is introducing an explicit `suspend` property (similar to CronJobs) to explicitly disable HPA with any types of metrics.
+To resolve this issue the KEP is introducing an explicit `enableScaleToZero` property to explicitly enable/disable HPA with any types of metrics.
 
 ### Risks and Mitigations
 
@@ -276,15 +273,15 @@ required) or even code snippets. If there's any ambiguity about HOW your
 proposal will be implemented, this is the place to discuss them.
 -->
 
-We would add `Suspend *bool` to the HPA spec. It would have a default value of false, preserving current behavior.
+We would add `EnableScaleToZero *bool` to the HPA spec. It would have a default value of false, preserving current behavior.
 
 ```golang
 // Spec to control the desired behavior of daemon set rolling update.
 type HorizontalPodAutoscalerSpec struct {
-	// This flag tells the controller to suspend subsequent executions.
+	// This flag tells the controller to enable scale to zero.
   // Defaults to false.
 	// +optional
-	Suspend *bool `json:"suspend,omitempty" protobuf:"varint,4,opt,name=suspend"`
+	EnableScaleToZero *bool `json:"enableScaleToZero,omitempty" protobuf:"varint,4,opt,name=enableScaleToZero"`
 ```
 
 ### Test Plan
