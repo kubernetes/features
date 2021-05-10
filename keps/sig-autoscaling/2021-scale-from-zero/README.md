@@ -147,8 +147,7 @@ Items marked with (R) are required *prior to targeting to a milestone / release*
 ## Summary
 
 [Horizontal Pod Autoscaler][] (HPA) automatically scales the number of pods in any resource which supports the `scale` subresource based on observed CPU utilization
-(or, with custom metrics support, on some other application-provided metrics) from one to many replicas. This proposal adds support for scaling from zero to many replicas
-for object and external metrics.
+(or, with custom metrics support, on some other application-provided metrics) from one to many replicas. This proposal adds support for scaling from zero to many replicas and back to zero for object and external metrics.
 
 [Horizontal Pod Autoscaler]: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
 
@@ -218,6 +217,8 @@ implementation. The "Design Details" section below is for the real
 nitty-gritty.
 -->
 
+Allow the HPA to scale from and to zero using `minReplicas: 0` when explicitly enabled with a flag.
+
 ### User Stories (Optional)
 
 <!--
@@ -248,7 +249,7 @@ As `replicas: 0` is now a possible state when using `minReplicas: 0` it can no l
 Additionally the `replicas: 0` state is problematic as updating a HPA object `minReplicas` from `0` to `1` has different behavior. If `replicas` was `0` during the update, HPA
 will be disabled for the resource, if it was `> 0`, HPA will continue with the new `minReplicas` value.
 
-To resolve this issue the KEP is introducing an explicit `enableScaleToZero` property to explicitly enable/disable HPA with any types of metrics.
+To resolve this issue the KEP is introducing an explicit `enableScaleToZero` property to explicitly enable/disable scale from/to zero.
 
 ### Risks and Mitigations
 
@@ -264,6 +265,9 @@ How will UX be reviewed, and by whom?
 Consider including folks who also work outside the SIG or subproject.
 -->
 
+From an UX perspective the two stage opt-out / opt-in from scale to zero might feel a bit tedious, but the only other available option seems to be deprecating the implicit HPA pause on `replicas: 0`. While this might provide an improved
+UX, it would require a full deprecation cycle (12 months) before graduating this feature from alpha to beta.
+
 ## Design Details
 
 <!--
@@ -273,7 +277,7 @@ required) or even code snippets. If there's any ambiguity about HOW your
 proposal will be implemented, this is the place to discuss them.
 -->
 
-We would add `EnableScaleToZero *bool` to the HPA `spec.behavior`. It would have a default value of false, preserving current behavior.
+We would add `EnableScaleToZero *bool` to the HPA `spec.behavior`.
 
 ```golang
 type HorizontalPodAutoscalerBehavior struct {
@@ -290,6 +294,11 @@ type HorizontalPodAutoscalerSpec struct {
     Behavior       *HorizontalPodAutoscalerBehavior
 }
 ```
+
+The `EnableScaleToZero` controls whether the `MinReplicas` can set to `>=0` (`true`, new behavior) or `>=1` (`false`, current behavior). The default will be `false` to preserve the current behavior.
+
+If `EnableScaleToZero` has been enabled, it can only be disabled when the scaled resource has at least one replica
+running and `MinReplicas` is `>=1`.
 
 ### Test Plan
 
@@ -311,7 +320,11 @@ when drafting this test plan.
 [testing-guidelines]: https://git.k8s.io/community/contributors/devel/sig-testing/testing.md
 -->
 
-* Add missing integration tests changing `minReplicas` from `0` to `1`.
+Most logic related to this KEP is contained in the HPA controller so the testing of
+the various `minReplicas`, `replicas` and `enableScaleToZero` should be achievable with unit tests.
+
+Additionally integration tests should be added for enable scale to zero by, setting
+ `enableScaleToZero: true`, setting `enableScaleToZero: true` and waiting for `replicas` to become `0` and another test for increasing `minReplicas: 1`, setting `enableScaleToZero: false` and observing that `replicas` became `1` again.
 
 ### Graduation Criteria
 
@@ -342,8 +355,8 @@ Below are some examples to consider, in addition to the aforementioned [maturity
 
 #### Alpha -> Beta Graduation
 
-- Bug: Fix that increasing `minReplicas` from `0` to `1` is not causing the scaled resource to be scaled to `1`.
-- Re-add support for disabling HPA using the `suspend` property.
+- Implement the `enableScaleToZero` property
+- Ensure that all `minReplicas` state transitions from `0` to `1` are working as expected
 
 #### Beta -> GA Graduation
 
@@ -384,6 +397,10 @@ enhancement:
 -->
 
 As this KEP changes the allowed values for `minReplicas`, special care is required for the downgrade case to not prevent any kind of updates for HPA objects using `minReplicas: 0`. The alpha code already accepts `minReplicas: 0` with the flag enabled or disabled since Kubernetes version 1.16 downgrades to any version >= 1.16 aren't an issue.
+
+The new flag `enableScaleToZero` defaults to `false`, which was has been the previous behavior. In flag should be disabled before downgrading as otherwise the
+HPA for deployments with zero replicas will be disabled until replicas have been
+raised explicitly to at least `1`.
 
 ### Version Skew Strategy
 
