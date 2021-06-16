@@ -120,7 +120,7 @@ problems.
 ### Risks and Mitigations
 
 The current guidance exists for a reason.  It does encourage a sort of
-idealogical cleanliness.  However, it is not universally adhered to and it
+ideological cleanliness.  However, it is not universally adhered to and it
 neglects the reality of these request/acknowledge APIs.  On the whole, this KEP
 posits that the current guidance is a net negative.
 
@@ -199,7 +199,7 @@ Pro: Clarifies the meaning of status.
 
 Pro: Possibly clarifies the roles acting on a resource.
 
-Con: Requires a lot of implentation and possibly steps on existing uses of the
+Con: Requires a lot of implementation and possibly steps on existing uses of the
 field name.
 
 Con: Net-new concept requires new documentation and socialization.
