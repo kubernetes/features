@@ -248,7 +248,7 @@ Since Docker can’t reproducibly build static digests, the testing behavior wil
 #### Non-Approach: Generate Test Manifests
 If docker build produces new golden image digests each time, couldn't we also generate new test manifests to use these new digests? This would suggest the following behavior:
 
-[IMAGE 1]
+![image](./e2e-expensive-behavior.png)
 
 This adds two new steps to the behavior of the e2e tests. Before each test, old test manifest files are deleted, as they contain old digest images. After every golden image is built with docker, their unique image digests are saved into new test manifest files. Such an approach would allow e2e tests to pass, but produce some unwanted side-effects.
 
@@ -257,7 +257,7 @@ First, repeating the same e2e test twice is impossible, as the prior test fixtur
 #### Approach #1: Static Hosting
 A simpler approach would be to host static golden images in a project owned image repository. This would remove the steps of building the same images for every PR. Instead, these images could be built once and permanently live in an isolated directory. Assuming these images now permanently reside in the source image repository, below is an example of the modified e2e-test behavior.
 
-[IMAGE 2]
+![image](./e2e-short-behavior.png)
 
 In this scenario, there’s no need to clear the src repo since the golden images will already reside there. The destination still needs to be purged in order to remove any residual testing artifacts. However, this approach avoids image building altogether, thus removing the need for pushing images in setup.
 
@@ -284,7 +284,7 @@ docker push gcr.io/testing/example
 ```
 Running this script multiple times will always produce the same image digest. Therefore, docker save and docker load from tarballs provides similar reproducible builds as Bazel. Below is the behavior of the e2e tests when adopting this approach:
 
-[IMAGE 3]
+![image](./e2e-recommended-behavior.png)
 
 Notice how this series of events looks almost identical to the original flow of e2e tests. It replaces the second build step with loading images from local archives. This simple adjustment removes the need for any extra setup modification while preserving existing business logic.
 
